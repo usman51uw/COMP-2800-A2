@@ -6,16 +6,7 @@ function loadTexture(path){
     });
 }
 
-//Canvas setup
-let canvasElement, canvasContext;
-
-window.onload = () => {
-    canvasElement = document.getElementById('canvas');
-    canvasContext = canvasElement.getContext('2d');
-    canvasContext.fillStyle = 'black';
-    canvasContext.fillRect(0, 0, canvasElement.width, canvasElement.height);
-};
-
+//Class setup
 class GameObject{
     constructor(x, y, type){
         this.x = x;
@@ -31,6 +22,7 @@ class GameObject{
     }
 }
 
+//Player
 class Hero extends GameObject{
     constructor(x, y){
         super(x, y, 'Hero');
@@ -53,3 +45,48 @@ class Enemy extends GameObject{
 
     }
 }
+
+//Canvas variables
+let canvasElement, canvasContext;
+
+//Character variables
+let heroImage, enemyImage, laserImage, lifeImage;
+let gameObjects = [];
+let hero;
+
+function createHero(){
+    hero = new Hero(
+        (canvasElement.width / 2) - 45,         //hero's left edge in horizontal center
+        canvasElement.height / 4);              //hero is 1/4 height up from bottom
+    
+    hero.image = heroImage;
+    gameObjects.push(hero);     //Add hero to gameObjects array
+}
+
+function createEnemy(){
+    const enemyTotal = 5;
+    const enemySpacing = 98;    //enemy width (each)
+    const formationWidth = enemyTotal * enemySpacing;
+    const startX = (canvasElement.width - formationWidth) / 2;  //where left edge starts
+    const stopX = startX + formationWidth;  //where right edge ends
+
+    for(let x = startX; x<stopX; x+=enemySpacing){
+        for(let y = 0; y < 50 * 5; y += 50){
+            const enemy = new Enemy(x, y);
+            enemy.image = enemyImage;
+            gameObjects.push(enemy);
+        }
+    }
+}
+
+window.onload = async () => {
+    canvasElement = document.getElementById('canvas');
+    canvasContext = canvasElement.getContext('2d');
+
+    heroImage = await loadTexture('images/player.png');
+    enemyImage = await loadTexture('images/enemyShip.png');
+
+    canvasContext.fillStyle = 'black';
+    canvasContext.fillRect(0, 0, canvasElement.width, canvasElement.height);
+};
+

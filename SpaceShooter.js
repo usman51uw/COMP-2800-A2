@@ -85,8 +85,17 @@ window.onload = async () => {
 
     heroImage = await loadTexture('images/player.png');
     enemyImage = await loadTexture('images/enemyShip.png');
+    createHero();
+    createEnemy();
 
     canvasContext.fillStyle = 'black';
     canvasContext.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+    setInterval(() => {
+        canvasContext.clearRect(0, 0, canvasContext.width, canvasContext.height);
+        canvasContext.fillStyle = 'black';
+        canvasContext.fillRect(0, 0, canvasElement.width, canvasElement.height);
+        gameObjects.forEach(gameObject => gameObject.draw(canvasContext));
+    }, 100);
 };
 

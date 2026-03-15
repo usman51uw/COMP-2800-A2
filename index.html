@@ -1,25 +1,29 @@
-<!Doctype html>
+<!DOCTYPE html>
 <html>
-    <head>
-        <title> Space Shooter </title>
-        <style>
-            body{
-                margin: 0;
-                padding: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                background-color: #111;
-                font-family: Arial, sans-serif;
-            }
-            #canvas{
-                border: 2px solid #333;
-            }
-        </style>
-    </head>
-    <body>
-        <canvas id = "canvas" width= " 1024" height = "768"></canvas>
-        <script src = SpaceShooter.js></script>
-    </body>
+<head>
+    <title>Space Shooter - Pew Pew!</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #111;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            border: 2px solid #333;
+            max-width: 100%;
+            max-height: 95vh;
+            width: auto;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="1024" height="768"></canvas>
+    <script src="SpaceShooter.js"></script>
+</body>
 </html>

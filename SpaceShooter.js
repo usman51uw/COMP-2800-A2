@@ -55,7 +55,7 @@ class GameObject{
         this.x = x;
         this.y = y;
         this.type = type;
-        this.dead = false;
+        this.dead = false;      //object marked for removal
         this.width = 0;
         this.height = 0;
         this.image = null;
@@ -85,7 +85,7 @@ class Laser extends GameObject{
     }
 }
 
-//Player class
+//Player class with cooldown
 class Hero extends GameObject{
     constructor(x, y){
         super(x, y, 'Hero');
@@ -94,15 +94,17 @@ class Hero extends GameObject{
         this.height = 75;    //height + width come from image size
         this.width = 99;
         this.life = 3;
-        this.speed = 8;
+        this.speed = 6;       //movement speed per frame
         this.points = 0;
         this.cooldown = 0;      //frames until next shot
     }
 
     fire(){
         if(this.canFire()){
-            gameObjects.push(new Laser(this.x + 45, this.y - 10));  //center laser on hero
-            this.cooldown = 8;  //8 frame cooldown
+            const laser = new Laser(this.x + 45, this.y - 10);  //center laser on hero (99/2 ≈ 45)
+            laser.image = laserImage;
+            gameObjects.push(laser);
+            this.cooldown = 4;  //4 frame cooldown (prevents spamming)
         }
     }
 
@@ -126,12 +128,13 @@ class Enemy extends GameObject{
         super(x, y, 'Enemy');
         this.height = 50;   //height + width come from image size
         this.width = 98;
-        this.speedY = 1;
+        this.speedY = 0.5;    //pixels per frame moving down (slower)
     }
 }
 
 //Collision detection function
 function intersectRect(rectangle1, rectangle2){
+    //returns true if rectangles overlap, false if they are separated
     return !(
         rectangle2.left > rectangle1.right ||
         rectangle2.right < rectangle1.left ||
@@ -145,10 +148,10 @@ let canvasElement, canvasContext;
 
 //Character variables
 let heroImage, enemyImage, laserImage, lifeImage;
-let gameObjects = [];
+let gameObjects = [];       //array holding all active game objects
 let hero;
 let eventEmitter = new EventEmitter();
-let gameLoopId;
+let gameLoopId;             //stores interval ID so we can clear it later
 
 function createHero(){
     hero = new Hero(
@@ -166,6 +169,7 @@ function createEnemy(){
     const startX = (canvasElement.width - formationWidth) / 2;  //where left edge starts
     const stopX = startX + formationWidth;  //where right edge ends
 
+    //nested loops create 5x5 grid
     for(let x = startX; x < stopX; x += enemySpacing){
         for(let y = 0; y < 50 * 5; y += 50){
             const enemy = new Enemy(x, y);
@@ -184,11 +188,11 @@ function drawPoints(){
 }
 
 function drawLife(){
-    const startPos = canvasElement.width - 180;
+    const startPos = canvasElement.width - 180;  //starting position for life icons
     for(let i = 0; i < hero.life; i++){
         canvasContext.drawImage(
             lifeImage,
-            startPos + 45 * (i + 1),
+            startPos + 45 * (i + 1),    //spread icons horizontally
             canvasElement.height - 37,
             35, 27  //life.png dimensions
         );
@@ -207,13 +211,14 @@ function updateGameObjects(){
     //Move objects
     gameObjects.forEach(gameObject => {
         if(gameObject.type === 'Enemy'){
-            gameObject.y += gameObject.speedY;
+            gameObject.y += gameObject.speedY;  //move enemies down
             //Check if enemy reaches bottom -> game loss
             if(gameObject.y + gameObject.height >= canvasElement.height){
                 eventEmitter.emit(Messages.gameEndLoss);
             }
         } else if(gameObject.type === 'Laser'){
-            gameObject.y += gameObject.speedY;
+            gameObject.y += gameObject.speedY;  //move lasers up
+            //Remove laser if off screen top
             if(gameObject.y + gameObject.height < 0){
                 gameObject.dead = true;
             }
@@ -241,13 +246,13 @@ function updateGameObjects(){
         }
     });
     
-    //Remove dead objects
+    //Remove dead objects from array
     gameObjects = gameObjects.filter(gameObject => !gameObject.dead);
 }
 
 //End game function
 function endGame(win){
-    clearInterval(gameLoopId);
+    clearInterval(gameLoopId);  //stop game loop
     setTimeout(() => {
         canvasContext.clearRect(0, 0, canvasElement.width, canvasElement.height);
         canvasContext.fillStyle = 'black';
@@ -257,57 +262,57 @@ function endGame(win){
         } else {
             displayMessage('Game Over! Press [Enter] to restart');
         }
-    }, 200);
+    }, 200);  //short delay to ensure final frame renders
 }
 
 //Reset game function
 function resetGame(){
     if(gameLoopId){
-        clearInterval(gameLoopId);
-        eventEmitter.clear();
-        gameObjects = [];
-        createEnemy();
-        createHero();
+        clearInterval(gameLoopId);          //stop current game
+        eventEmitter.clear();                //remove all event listeners
         
+        //Re-initialize the game completely
+        gameObjects = [];                    //clear all objects
+        createEnemy();                       //create fresh enemies
+        createHero();                        //create fresh hero
+        
+        //Re-attach all event listeners (they were cleared)
+        initEventListeners();
+        
+        //start new game loop
         gameLoopId = setInterval(() => {
             canvasContext.clearRect(0, 0, canvasElement.width, canvasElement.height);
             canvasContext.fillStyle = 'black';
             canvasContext.fillRect(0, 0, canvasElement.width, canvasElement.height);
             
-            if(hero.cooldown > 0) hero.cooldown--;  //decrement cooldown
+            if(hero.cooldown > 0) hero.cooldown--;  //decrement cooldown each frame
             
             updateGameObjects();
             drawPoints();
             drawLife();
             
             gameObjects.forEach(gameObject => gameObject.draw(canvasContext));
-        }, 100);
+        }, 33);  //33ms = ~30fps for smoother motion
     }
 }
 
-function initGame(){
-    //Clear any previous state
-    gameObjects = [];
-    
-    //Create initial objects
-    createEnemy();
-    createHero();
-
+//Separate function to set up event listeners
+function initEventListeners(){
     //Subscribe to movement events
     eventEmitter.on(Messages.keyEventUp, () => {
-        hero.y = Math.max(0, hero.y - hero.speed);
+        hero.y = Math.max(0, hero.y - hero.speed);  //prevent going above screen
     });
     
     eventEmitter.on(Messages.keyEventDown, () => {
-        hero.y = Math.min(canvasElement.height - hero.height, hero.y + hero.speed);
+        hero.y = Math.min(canvasElement.height - hero.height, hero.y + hero.speed);  //prevent going below screen
     });
     
     eventEmitter.on(Messages.keyEventLeft, () => {
-        hero.x = Math.max(0, hero.x - hero.speed);
+        hero.x = Math.max(0, hero.x - hero.speed);  //prevent going left off screen
     });
     
     eventEmitter.on(Messages.keyEventRight, () => {
-        hero.x = Math.min(canvasElement.width - hero.width, hero.x + hero.speed);
+        hero.x = Math.min(canvasElement.width - hero.width, hero.x + hero.speed);  //prevent going right off screen
     });
 
     //Space key handler
@@ -339,6 +344,11 @@ function initGame(){
 
         if(hero.dead){
             eventEmitter.emit(Messages.gameEndLoss);
+        } else {
+            //After losing a life, check if all enemies are dead
+            if(gameObjects.filter(gameObject => gameObject.type === 'Enemy' && !gameObject.dead).length === 0){
+                eventEmitter.emit(Messages.gameEndWin);
+            }
         }
     });
 
@@ -352,10 +362,23 @@ function initGame(){
     });
 }
 
+function initGame(){
+    //Clear any previous state
+    gameObjects = [];
+    
+    //Create initial objects
+    createEnemy();
+    createHero();
+
+    //Set up all event listeners
+    initEventListeners();
+}
+
 window.onload = async () => {
     canvasElement = document.getElementById('canvas');
     canvasContext = canvasElement.getContext('2d');
 
+    //load all game images
     heroImage = await loadTexture('images/player.png');
     enemyImage = await loadTexture('images/enemyShip.png');
     laserImage = await loadTexture('images/laserRed.png');
@@ -363,20 +386,20 @@ window.onload = async () => {
     
     initGame();
 
-    //Start game loop
+    //Start game loop (runs every 33ms = ~30fps for smoother motion)
     gameLoopId = setInterval(() => {
         canvasContext.clearRect(0, 0, canvasElement.width, canvasElement.height);
         canvasContext.fillStyle = 'black';
         canvasContext.fillRect(0, 0, canvasElement.width, canvasElement.height);
         
-        if(hero.cooldown > 0) hero.cooldown--;  //decrement cooldown
+        if(hero.cooldown > 0) hero.cooldown--;  //decrement cooldown each frame
         
         updateGameObjects();
         drawPoints();
         drawLife();
         
         gameObjects.forEach(gameObject => gameObject.draw(canvasContext));
-    }, 100);
+    }, 33);  //33ms = ~30fps
 
     //Keyboard event listeners
     window.addEventListener('keydown', (event) => {

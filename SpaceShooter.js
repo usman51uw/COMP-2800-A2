@@ -1,74 +1,109 @@
-//Add update function to move objects
-function updateGameObjects(){
-    //Move all objects based on their type
-    gameObjects.forEach(gameObject => {
-        if(gameObject.type === 'Enemy'){
-            gameObject.y += gameObject.speedY;  //move enemies down
-        } else if(gameObject.type === 'Laser'){
-            gameObject.y += gameObject.speedY;  //move lasers up
-            //Remove laser if off screen top
-            if(gameObject.y + gameObject.height < 0){
-                gameObject.dead = true;
-            }
-        }
-    });
-    
-    //Remove dead objects from array
-    gameObjects = gameObjects.filter(gameObject => !gameObject.dead);
+//Load life image in window.onload (add this line)
+lifeImage = await loadTexture('images/life.png');
+
+//Add UI drawing functions
+function drawPoints(){
+    canvasContext.font = '30px Arial';
+    canvasContext.fillStyle = 'red';
+    canvasContext.textAlign = 'left';
+    canvasContext.fillText(`Points: ${hero.points}`, 10, canvasElement.height - 20);
 }
 
-//Add dead flag to GameObject class
-class GameObject{
-    constructor(x, y, type){
+function drawLife(){
+    const startPos = canvasElement.width - 180;
+    for(let i = 0; i < hero.life; i++){
+        canvasContext.drawImage(
+            lifeImage,
+            startPos + 45 * (i + 1),
+            canvasElement.height - 37,
+            35, 27  //life.png dimensions
+        );
+    }
+}
+
+//Add increment/decrement methods to Hero
+class Hero extends GameObject{
+    constructor(x, y){
+        super(x, y, 'Hero');
         this.x = x;
         this.y = y;
-        this.type = type;
-        this.dead = false;      //add dead flag
-        this.width = 0;
-        this.height = 0;
-        this.image = null;
+        this.height = 75;    //height + width come from image size
+        this.width = 99;
+        this.life = 3;
+        this.speed = 8;
+        this.points = 0;
     }
 
-    draw(canvasContext){
-        canvasContext.drawImage(this.image, this.x, this.y, this.width, this.height);
+    fire(){
+        gameObjects.push(new Laser(this.x + 45, this.y - 10));  //center laser on hero
+    }
+
+    decrementLife(){
+        this.life--;
+        if(this.life === 0) this.dead = true;
+    }
+
+    incrementPoints(){
+        this.points += 100;
     }
 }
 
-//Update game loop to call updateGameObjects
-window.onload = async () => {
-    canvasElement = document.getElementById('canvas');
-    canvasContext = canvasElement.getContext('2d');
-
-    heroImage = await loadTexture('images/player.png');
-    enemyImage = await loadTexture('images/enemyShip.png');
-    laserImage = await loadTexture('images/laserRed.png');
+//Add collision handlers in initGame
+function initGame(){
+    //Clear any previous state
+    gameObjects = [];
     
-    initGame();
+    //Create initial objects
+    createEnemy();
+    createHero();
 
-    //Game loop
-    setInterval(() => {
-        canvasContext.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        canvasContext.fillStyle = 'black';
-        canvasContext.fillRect(0, 0, canvasElement.width, canvasElement.height);
-        
-        updateGameObjects();  //Update positions before drawing
-        
-        gameObjects.forEach(gameObject => gameObject.draw(canvasContext));
-    }, 100);
-
-    //Keyboard event listeners
-    window.addEventListener('keydown', (event) => {
-        //Prevent default scrolling/spacebar page jump
-        if([32, 37, 38, 39, 40].includes(event.keyCode)){
-            event.preventDefault();
-        }
-
-        switch(event.key){
-            case 'ArrowUp': eventEmitter.emit(Messages.KEY_EVENT_UP); break;
-            case 'ArrowDown': eventEmitter.emit(Messages.KEY_EVENT_DOWN); break;
-            case 'ArrowLeft': eventEmitter.emit(Messages.KEY_EVENT_LEFT); break;
-            case 'ArrowRight': eventEmitter.emit(Messages.KEY_EVENT_RIGHT); break;
-            case ' ': eventEmitter.emit(Messages.KEY_EVENT_SPACE); break;
-        }
+    //Subscribe to movement events (using camelCase)
+    eventEmitter.on(Messages.keyEventUp, () => {
+        hero.y = Math.max(0, hero.y - hero.speed);
     });
-};
+    
+    eventEmitter.on(Messages.keyEventDown, () => {
+        hero.y = Math.min(canvasElement.height - hero.height, hero.y + hero.speed);
+    });
+    
+    eventEmitter.on(Messages.keyEventLeft, () => {
+        hero.x = Math.max(0, hero.x - hero.speed);
+    });
+    
+    eventEmitter.on(Messages.keyEventRight, () => {
+        hero.x = Math.min(canvasElement.width - hero.width, hero.x + hero.speed);
+    });
+
+    //Add space key handler (using camelCase)
+    eventEmitter.on(Messages.keyEventSpace, () => {
+        hero.fire();
+    });
+
+    //Handle laser-enemy collision (using camelCase)
+    eventEmitter.on(Messages.collisionEnemyLaser, (_, { first, second }) => {
+        first.dead = true;
+        second.dead = true;
+        hero.incrementPoints();
+    });
+
+    //Handle enemy-hero collision (using camelCase)
+    eventEmitter.on(Messages.collisionEnemyHero, (_, { enemy }) => {
+        enemy.dead = true;
+        hero.decrementLife();
+    });
+}
+
+//Update game loop to draw UI
+//Replace the existing setInterval with this:
+setInterval(() => {
+    canvasContext.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasContext.fillStyle = 'black';
+    canvasContext.fillRect(0, 0, canvasElement.width, canvasElement.height);
+    
+    updateGameObjects();
+    
+    drawPoints();    //draw score
+    drawLife();      //draw life icons
+    
+    gameObjects.forEach(gameObject => gameObject.draw(canvasContext));
+}, 100);

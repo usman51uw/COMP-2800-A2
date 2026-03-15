@@ -122,13 +122,28 @@ class Hero extends GameObject{
     }
 }
 
-//Enemy class
+//Enemy class with side-to-side movement
 class Enemy extends GameObject{
     constructor(x, y){
         super(x, y, 'Enemy');
         this.height = 50;   //height + width come from image size
         this.width = 98;
-        this.speedY = 0.5;    //pixels per frame moving down (slower)
+        this.speedY = 0.5;    //pixels per frame moving down
+        this.speedX = 1.5;    //pixels per frame moving sideways
+        this.direction = 1;    //1 = right, -1 = left
+        this.startX = x;       //store original x position for formation
+    }
+
+    //update position with side-to-side movement
+    update(){
+        this.x += this.speedX * this.direction;  //move left or right
+        this.y += this.speedY;                    //move down slowly
+    }
+
+    //change direction when hitting edge
+    reverseDirection(){
+        this.direction *= -1;  //flip from 1 to -1 or -1 to 1
+        this.y += 10;           //move down when changing direction (classic Space Invaders style)
     }
 }
 
@@ -208,10 +223,21 @@ function displayMessage(message, color = 'red'){
 
 //Update function to move objects and check collisions
 function updateGameObjects(){
-    //Move objects
+    //Track leftmost and rightmost enemies for boundary detection
+    let leftmostEnemy = canvasElement.width;
+    let rightmostEnemy = 0;
+    let enemiesExist = false;
+    
+    //First pass: move enemies and track boundaries
     gameObjects.forEach(gameObject => {
         if(gameObject.type === 'Enemy'){
-            gameObject.y += gameObject.speedY;  //move enemies down
+            gameObject.update();  //call enemy's update method for side-to-side movement
+            
+            //track boundaries for direction change
+            if(gameObject.x < leftmostEnemy) leftmostEnemy = gameObject.x;
+            if(gameObject.x + gameObject.width > rightmostEnemy) rightmostEnemy = gameObject.x + gameObject.width;
+            enemiesExist = true;
+            
             //Check if enemy reaches bottom -> game loss
             if(gameObject.y + gameObject.height >= canvasElement.height){
                 eventEmitter.emit(Messages.gameEndLoss);
@@ -224,6 +250,15 @@ function updateGameObjects(){
             }
         }
     });
+    
+    //Check if enemies hit left or right edge and need to reverse direction
+    if(enemiesExist && (leftmostEnemy <= 0 || rightmostEnemy >= canvasElement.width)){
+        gameObjects.forEach(gameObject => {
+            if(gameObject.type === 'Enemy'){
+                gameObject.reverseDirection();  //reverse direction and move down
+            }
+        });
+    }
 
     //Check laser vs enemy collisions
     const lasers = gameObjects.filter(gameObject => gameObject.type === 'Laser' && !gameObject.dead);
